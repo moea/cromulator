@@ -34,3 +34,21 @@ html, body, #app, svg {
   height: 95vh;
   margin: 0;
 }
+
+#visible {
+  transform-origin: center;
+  animation: loading-spinner 5s linear infinite;
+  fill: none;
+  stroke: black;
+  stroke-width: 0.25px;
+}
+
+
+@keyframes loading-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

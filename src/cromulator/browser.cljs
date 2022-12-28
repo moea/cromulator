@@ -10,7 +10,9 @@
             [clojure.string  :as str]))
 
 (defn- uniform [v lo hi]
-  (max lo (.round js/Math (* (+ lo (- hi lo)) (rand)))))
+  (if (identical? v :m)
+    (rand-nth (range 0 22 2))
+    (max lo (.round js/Math (* (+ lo (- hi lo)) (rand))))))
 
 (def bounds (into (sorted-map)
               {:a  [0.5   20]
@@ -61,7 +63,7 @@
   (defn superformula-path [& [inputs]]
     (let [inputs (or inputs (superformula-inputs))]
       (let [pts   (geom/superformula-points [0 0] inputs)
-        pth       (pc/roundPath (pc/normalizePath (clj->js (partition 3 (spline/pts->path pts)))) 6)
+        pth       (pc/roundPath (pc/normalizePath (clj->js (partition 3 (spline/pts->path pts)))) 8)
         {w :width
          h :height
          x :x
@@ -91,7 +93,6 @@
     (r/with-let [tween (kute/to (str "#" n1)
                                 #js {:path (str "#" n2)}
                                 #js {:duration   1000
-                                     :easing     "easingCubicOut"
                                      :onComplete (fn []
                                                    (reset! t? false)
                                                    (cb))})]

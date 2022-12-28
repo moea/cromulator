@@ -10,8 +10,8 @@
       (both * (/ 1 r) (cos phi) (sin phi)))))
 
 (defn superformula-points [coords {m :m n1 :n1 n2 :n2 n3 :n3 a :a b :b}
-                           & [{res :resolution :or {res 720}}]]
-  (into [coords]
+                           & [{res :resolution :or {res 1024}}]]
+  (into []
     (comp
      (map (partial * (/ TAU res)))
      (map (partial sf-point m n1 n2 n3 a b))
