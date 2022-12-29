@@ -13,17 +13,27 @@
             [clojure.string       :as str]))
 
 (defn- generate-input [v lo hi incr clamped?]
-  (if clamped?
+  (if (or clamped? (nil? lo))
     lo
     (rand-nth (range lo (+ hi incr) incr))))
 
 (def bounds (into (sorted-map)
               {:a  [0.5   20 0.1 false]
                :b  [0.5   20 0.1 false]
-               :m1 [0     20 2   false]
+               :m1 [0     20 1   false]
+               :m2 [0     20 1   false]
                :n1 [0     80 1   false]
                :n2 [0     80 1   false]
                :n3 [0     80 1   false]}))
+
+(def defaults
+  (-> bounds
+      (assoc-in [:m2 0] nil)
+      (assoc
+        :m1 [2 20 2 false]
+        :n1 [2 80 2 false]
+        :n2 [4 80 2 false]
+        :n3 [4 80 2 false])))
 
 (defn- pts->path [pts]
   (into [(into ["M"] (first pts))]
@@ -32,7 +42,7 @@
 
 (defn- superformula-inputs [& [state]]
   (into {}
-    (for [[k bounds'] (:bounds state bounds)]
+    (for [[k bounds'] (:bounds (when state @state) defaults)]
       [k (apply generate-input k bounds')])))
 
 (let [W 100
@@ -62,7 +72,7 @@
     (catch :default _
       (superformula-path inputs state))))
 
-(def state (r/atom {:bounds     bounds
+(def state (r/atom {:bounds    defaults
                     :paths     [(superformula-path) (superformula-path)]
                     :tween     ""
                     :path-ref  nil
@@ -79,7 +89,7 @@
 (defn f-range [lo hi incr & [{p :precision :or {p 1}}]]
   (into []
     (comp
-     (map #(.toFixed %1 p))
+     (map #(.toFixed % p))
      (map js/parseFloat))
     (range lo hi incr)))
 
@@ -90,7 +100,7 @@
    (for [n range*
          :let [attrs     {:value (str n) :key n}
                selected? (= n cur-val)]]
-           [:option (cond-> attrs selected? (assoc :selected true)) n])])
+     [:option (cond-> attrs selected? (assoc :selected true)) n])])
 
 (defn controls [{k-bounds :bounds k :key} & children]
   [:div
@@ -101,22 +111,28 @@
       (for [[i range* cur] [[0 (f-range lo hi incr-v)                       lo-v]
                             [1 (f-range (+ lo incr-v) (+ hi incr-v) incr-v) hi-v]
                             [2 [0.1 0.5 1 2]                                incr-v]]]
-        (select-input k i range* cur (and (pos? i) clamp-v) k-bounds))
+        (select-input k i range* cur (or (nil? lo-v) (and (pos? i) clamp-v)) k-bounds))
       [:input {:type      "checkbox"
                :checked   clamp-v
+               :disabled  (nil? lo-v)
                :on-change #(swap! k-bounds assoc 3 (checked? %))}]])
    children])
 
 (defn control-set [{bounds' :bounds}]
-  [:div.controls
-   [:fieldset
-    [:span.ib.labels
-     [:span.ib.label "min"]
-     [:span.ib.label "max"]
-     [:span.ib.label "step"]
-     [:span.ib.label "clamp"]]
-    (for [k (keys bounds)]
-      [controls {:bounds (r/cursor bounds' [k]) :key k}])]])
+  (let [on-change #(swap! bounds' assoc-in [:m2 0] (if (checked? %) nil 0))]
+    [:div.controls
+     [:fieldset
+      [:span.ib.labels
+       [:span.ib.label "min"]
+       [:span.ib.label "max"]
+       [:span.ib.label "step"]
+       [:span.ib.label "clamp"]]
+      (for [k (keys bounds)]
+        [controls {:bounds (r/cursor bounds' [k]) :key k}])
+      [:span.ib.m2 [:input {:type      "checkbox"
+                            :checked   (-> @bounds' :m2 (get 0) nil?)
+                            :on-change on-change}]
+       [:label "Disable m" [:sub 2]]]]]))
 
 (defn superformula-svg [{a :path-ref p :path}]
   [:svg {:viewBox "0 0 100 100"}
@@ -150,7 +166,7 @@
                ([]
                 (cleanup!)
                 (reset! tweening? false)))
-             600))))
+             400))))
        1000
        4))))
 

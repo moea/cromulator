@@ -13,7 +13,7 @@ select {
 
 
 html, body, #app, svg {
-  background-color: grey;
+  background-color: lightgrey;
   width: 100%;
   height: 100vh;
   margin: 0;
@@ -35,7 +35,7 @@ svg path {
   animation: loading-spinner 5s linear infinite;
   fill: pink;
   stroke: darkgrey;
-  stroke-width: 0.125px;
+  stroke-width: 0.25px;
 }
 
 .param {
@@ -55,6 +55,14 @@ svg path {
 input[type="checkbox"] {
   margin: -1px 1em 0 1em;
   vertical-align: middle;
+}
+
+.controls input[type="checkbox"] {
+  margin-left: 0;
+}
+
+.m2 {
+  margin-top: 1em;
 }
 
 select {
@@ -77,4 +85,15 @@ select {
 .label {
   width: 4.2em;
   text-align: center;
+}
+
+.gh-link {
+  display: block;
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
+
+.gh-link img {
+  width: 72px;
 }
