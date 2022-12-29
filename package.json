@@ -1,11 +1,9 @@
 {
   "dependencies": {
     "flubber": "^0.4.2",
-    "kute.js": "^2.2.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "svg-path-commander": "^1.0.5",
-    "svgpath": "^2.6.0"
+    "svg-path-commander": "^1.0.5"
   },
   "devDependencies": {
     "shadow-cljs": "^2.20.16"

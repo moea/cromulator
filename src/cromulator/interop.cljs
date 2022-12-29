@@ -1,5 +1,4 @@
-(ns cromulator.interop
-  (:require ["kute.js" :refer [default] :rename {default kute}]))
+(ns cromulator.interop)
 
 (defn animate [f dur]
   (let [start    (atom js/Infinity)
