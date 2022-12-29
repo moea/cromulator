@@ -1,133 +1,172 @@
 (ns cromulator.browser
   (:require [reagent.core    :as r]
-            [reagent.ratom]
             [reagent.dom     :as d]
             [react           :as react]
             [cromulator.geom :as geom]
             [cromulator.interop
-             :refer [yoyo-animate animate]]
-            ["flubber"       :as flubber]
+             :refer [yoyo-animate
+                     animate
+                     event-value
+                     checked?]]
+            ["flubber"            :as flubber]
             ["svg-path-commander" :as pc]
-            ["kute.js" :as kute]
-            [cromulator.spline :as spline]
-            [clojure.string  :as str]))
+            [clojure.string       :as str]))
 
-(defn- uniform [v lo hi]
-  (if (identical? v :m)
-    (rand-nth (range 0 22 2))
-    (max lo (js/parseFloat (.toFixed (* (+ lo (- hi lo)) (rand)) 1)))))
+(defn- generate-input [v lo hi incr clamped?]
+  (if clamped?
+    lo
+    (rand-nth (range lo (+ hi incr) incr))))
 
 (def bounds (into (sorted-map)
-              {:a  [0.5   20]
-               :b  [0.5   20]
-               :m  [2     20]
-               :n1 [2     80]
-               :n2 [4     80]
-               :n3 [4     80]}))
+              {:a  [0.5   20 0.1 false]
+               :b  [0.5   20 0.1 false]
+               :m1 [0     20 2   false]
+               :n1 [0     80 1   false]
+               :n2 [0     80 1   false]
+               :n3 [0     80 1   false]}))
 
+(defn- pts->path [pts]
+  (into [(into ["M"] (first pts))]
+    (for [pt (rest pts)]
+      (into ["L"] pt))))
 
 (defn- superformula-inputs [& [state]]
   (into {}
-    (for [[k range'] (:range state bounds)]
-      [k (apply uniform k range')])))
+    (for [[k bounds'] (:bounds state bounds)]
+      [k (apply generate-input k bounds')])))
 
 (let [W 100
       H 100]
-  (defn superformula-path [& [inputs state]]
-    (let [inputs      (or inputs (superformula-inputs state))]
-      (let [pts       (geom/superformula-points [0 0] inputs)
-            pth       (pc/roundPath (pc/normalizePath (clj->js (partition 3 (spline/pts->path pts)))) 6)
-            {w :width
-             h :height
-             x :x
-             y :y}     (js->clj (pc/getPathBBox pth) :keywordize-keys true)
-            scale      (cond-> (min (/ W w) (/ H h)) (or (< W w) (< H h)) -)
-            trans-x    (min 50 (abs (- (/ (- W w) 2) x)))
-            trans-y    (min 50 (abs (- (/ (- H h) 2) y)))]
-        (-> pth
-            (pc/transformPath #js {:translate #js [trans-x trans-y]
-                                   :scale     scale})
-            pc/pathToString)))))
+  (defn superformula-path* [& [inputs state]]
+    (let [inputs     (or inputs (superformula-inputs state))
+          pts        (geom/superformula-points [0 0] inputs)
+          pth        (clj->js (pts->path pts))
+          {w :width
+           h :height
+           x :x
+           y :y}     (js->clj (pc/getPathBBox pth) :keywordize-keys true)
+          scale      (cond-> (min (/ W w) (/ H h)) (or (< W w) (< H h)) -)
+          trans-x    (min 50 (abs (- (/ (- W w) 2) x)))
+          trans-y    (min 50 (abs (- (/ (- H h) 2) y)))]
+      (-> pth
+          (pc/transformPath #js {:translate #js [trans-x trans-y]
+                                 :scale     scale})
+          pc/roundPath
+          pc/pathToString))))
 
-(let [[i1 i2] [(superformula-inputs) (superformula-inputs)]]
-  (def state (r/atom {:inputs    [i1 i2]
-                      :range     bounds
-                      :paths     [(superformula-path i1) (superformula-path i2)]
-                      :tween     ""
-                      :path-ref  nil
-                      :tweening? false
-                      :iter      0})))
+(defn superformula-path [& [inputs state]]
+  (try
+    ;; sometimes with constrained inputs we run into
+    ;; unscalable paths etc.
+    (superformula-path* inputs state)
+    (catch :default _
+      (superformula-path inputs state))))
 
-(defn- event-value [e]
-  (-> e .-target .-value))
+(def state (r/atom {:bounds     bounds
+                    :paths     [(superformula-path) (superformula-path)]
+                    :tween     ""
+                    :path-ref  nil
+                    :tweening? false}))
 
-(defn sliders []
-  (into [:div {:style {:position "absolute" :top 10 :left 10}}]
-    (for [[v [lo hi]] bounds]
-      [:div [:span {:style {:width "2em" :display "inline-block"}} (name v)]
-       [:span {:style {:width "2em" :display "inline-block"}} ]
-       (let [[lo-v hi-v] (-> @state :range v)]
-         [:span {:display "inline-block"}
-          [:span {:style {:width "2em" :display "inline-block"}} lo-v]
-          [:input {:type "range"
-                   :name (str v 0)
-                   :min lo
-                   :max hi
-                   :value hi-v
-                   :step lo
-                   :on-change #(swap! state assoc-in [:range v 1] (event-value %))}]
-          [:span {:style {:width "2em" :display "inline-block" :text-align "right"}} hi]])])))
+(def assoc-state! (partial swap! state assoc-in))
 
-(defn superformula-svg [{id :path-id a :path-ref p :path}]
+(let [nums (into #{} (map str) (range 10))]
+  (defn param [v]
+    (let [v (name v)
+          n (some nums v)]
+      (cond-> [:span.param (first v)] n (conj [:sub n])))))
+
+(defn f-range [lo hi incr & [{p :precision :or {p 1}}]]
+  (into []
+    (comp
+     (map #(.toFixed %1 p))
+     (map js/parseFloat))
+    (range lo hi incr)))
+
+(defn- select-input [k i range* cur-val disabled? k-bounds]
+  [:select {:on-change #(swap! k-bounds assoc i (js/parseFloat (event-value %)))
+            :key       i
+            :disabled  disabled?}
+   (for [n range*
+         :let [attrs     {:value (str n) :key n}
+               selected? (= n cur-val)]]
+           [:option (cond-> attrs selected? (assoc :selected true)) n])])
+
+(defn controls [{k-bounds :bounds k :key} & children]
+  [:div
+   (let [[lo   hi   incr]           (k bounds)
+         [lo-v hi-v incr-v clamp-v] @k-bounds]
+     [:span.ib
+      [param k]
+      (for [[i range* cur] [[0 (f-range lo hi incr-v)                       lo-v]
+                            [1 (f-range (+ lo incr-v) (+ hi incr-v) incr-v) hi-v]
+                            [2 [0.1 0.5 1 2]                                incr-v]]]
+        (select-input k i range* cur (and (pos? i) clamp-v) k-bounds))
+      [:input {:type      "checkbox"
+               :checked   clamp-v
+               :on-change #(swap! k-bounds assoc 3 (checked? %))}]])
+   children])
+
+(defn control-set [{bounds' :bounds}]
+  [:div.controls
+   [:fieldset
+    [:span.ib.labels
+     [:span.ib.label "min"]
+     [:span.ib.label "max"]
+     [:span.ib.label "step"]
+     [:span.ib.label "clamp"]]
+    (for [k (keys bounds)]
+      [controls {:bounds (r/cursor bounds' [k]) :key k}])]])
+
+(defn superformula-svg [{a :path-ref p :path}]
   [:svg {:viewBox "0 0 100 100"}
    [:path {:ref (partial reset! a)
-           :id  id
            :d   @p}]])
 
-(defn tweener [path-ref tweening? paths cb]
+(defn path-interpolator [paths]
+  (let [actual (apply flubber/interpolate paths)]
+    (fn interpolator [v]
+      (let [path (actual v)]
+        (assoc-state! [:tween]   path)
+        (assoc-state! [:paths 0] path)
+        path))))
+
+(defn tweener [{path-ref  :path-ref
+                tweening? :tweening?
+                paths     :paths}]
   (when (and @path-ref (not @tweening?))
-    (let [interp (apply flubber/interpolate @paths)]
-      (reset! tweening? true)
+    (reset! tweening? true)
+    (let [interp!  (path-interpolator @paths)
+          cleanup! #(swap! paths assoc 1 (superformula-path nil state))]
       (yoyo-animate
-       (fn animator
-         ([i progress]
-          (let [p (interp (* progress (/ i 2)))]
-            (swap! state assoc :tween p)
-            (swap! state assoc-in [:paths 0] p)))
+       (fn yoyo-animator
+         ([i progress] (interp! (* progress (/ (+ i 0.2) 2))))
          ([]
-          (swap! paths assoc 1 (superformula-path nil state))
-          (let [interp (apply flubber/interpolate @paths)]
+          (cleanup!)
+          (let [interp! (path-interpolator @paths)]
             (animate
-             (fn animator
-               ([progress]
-                (let [p (interp progress)]
-                  (swap! state assoc :tween p)
-                  (swap! state assoc-in [:paths 0] p)))
+             (fn next-animator
+               ([progress] (interp! progress))
                ([]
-                (swap! paths assoc 1 (superformula-path nil state))
-                (reset! tweening? false)
-                (cb)))
-             500))))
+                (cleanup!)
+                (reset! tweening? false)))
+             400))))
        1000
-       4)))
-  [:<>])
+       4))))
 
-(defn home-page []
-  (r/with-let [iter  (r/cursor state [:iter])
-               p     (r/cursor state [:path-ref])
-               pt0   (r/cursor state [:paths 0])
-               pt1   (r/cursor state [:paths 1])
-               t?    (r/cursor state [:tweening?])
-               tween (r/cursor state [:tween])]
-
+(defn sf-container []
+  (r/with-let [p (r/cursor state [:path-ref])]
     [:div
-     [sliders]
-     [superformula-svg {:path-id "visible" :path-ref p :path tween}]
-     [tweener p t? (r/cursor state [:paths]) (fn [])]]))
+     [control-set {:bounds (r/cursor state [:bounds])}]
+     [superformula-svg {:path-ref p
+                        :path     (r/cursor state [:tween])}]
+     [tweener {:path-ref  p
+               :tweening? (r/cursor state [:tweening?])
+               :paths     (r/cursor state [:paths])}]]))
 
 
 (defn mount-root []
-  (d/render [home-page] (.getElementById js/document "app")))
+  (d/render [sf-container] (.getElementById js/document "app")))
 
 (defn ^:export init! []
   (mount-root))

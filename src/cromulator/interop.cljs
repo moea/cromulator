@@ -26,3 +26,9 @@
                   ([] (yoyo-animate f dur repeats (inc i))))
                 dur)))
        dur))))
+
+(defn event-value [e]
+  (-> e .-target .-value))
+
+(defn checked? [e]
+  (-> e .-target .-checked))
