@@ -150,7 +150,7 @@
                ([]
                 (cleanup!)
                 (reset! tweening? false)))
-             400))))
+             600))))
        1000
        4))))
 
