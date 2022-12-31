@@ -1,8 +1,10 @@
 {:source-paths ["src"]
- :dependencies [[reagent "1.1.1"]]
+ :dependencies [[reagent            "1.1.1"]
+                [binaryage/devtools "1.0.6"]]
  :builds
  {:app {:target     :browser
         :output-dir "public/js"
         :asset-path "/js"
-        :modules    {:app {:entries [cromulator.browser]}}}}
+        :modules    {:app {:entries [cromulator.browser]}}
+        :devtools   {:after-load cromulator.browser/mount-root}}}
  :dev-http {3000 {:root "public"}}}

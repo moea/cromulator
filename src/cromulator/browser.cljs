@@ -55,7 +55,7 @@
            h :height
            x :x
            y :y}     (js->clj (pc/getPathBBox pth) :keywordize-keys true)
-          scale      (cond-> (min (/ W w) (/ H h)) (or (< W w) (< H h)) -)
+          scale      (min (/ W w) (/ H h))
           trans-x    (min 50 (abs (- (/ (- W w) 2) x)))
           trans-y    (min 50 (abs (- (/ (- H h) 2) y)))]
       (-> pth
