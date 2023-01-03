@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@luncheon/simplify-svg-path": "^0.2.0",
     "flubber": "^0.4.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

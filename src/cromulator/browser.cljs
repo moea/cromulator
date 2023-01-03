@@ -56,8 +56,8 @@
            x :x
            y :y}     (js->clj (pc/getPathBBox pth) :keywordize-keys true)
           scale      (min (/ W w) (/ H h))
-          trans-x    (min 50 (abs (- (/ (- W w) 2) x)))
-          trans-y    (min 50 (abs (- (/ (- H h) 2) y)))]
+          trans-x    (+ (* x scale -1) (/ (- W (* w scale)) 2))
+          trans-y    (+ (* y scale -1) (/ (- H (* h scale)) 2))]
       (-> pth
           (pc/transformPath #js {:translate #js [trans-x trans-y]
                                  :scale     scale})
