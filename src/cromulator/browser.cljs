@@ -13,18 +13,19 @@
             [clojure.string       :as str]))
 
 (defn- generate-input [v lo hi incr clamped?]
-  (if (or clamped? (nil? lo))
-    lo
-    (rand-nth (range lo (+ hi incr) incr))))
+  (let [input (if (or clamped? (nil? lo))
+                lo
+                (rand-nth (range lo (+ hi incr) incr)))]
+    (cond-> input (= v :a) (max 0.1))))
 
 (def bounds (into (sorted-map)
-              {:a  [0.5   20 0.1 false]
-               :b  [0.5   20 0.1 false]
-               :m1 [0     20 1   false]
-               :m2 [0     20 1   false]
-               :n1 [0     80 1   false]
-               :n2 [0     80 1   false]
-               :n3 [0     80 1   false]}))
+              {:a  [0 20 0.1 false]
+               :b  [0 20 0.1 false]
+               :m1 [0 20 1   false]
+               :m2 [0 20 1   false]
+               :n1 [0 80 1   false]
+               :n2 [0 80 1   false]
+               :n3 [0 80 1   false]}))
 
 (def defaults
   (-> bounds
